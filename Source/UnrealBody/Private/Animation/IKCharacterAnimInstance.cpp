@@ -21,12 +21,6 @@ void UIKCharacterAnimInstance::NativeInitializeAnimation()
 	{
 		// Set Character Reference
 		this->Character = PawnOwner;
-
-		// Try find IKBodyComponent
-		TArray<UIKBodyComponent*> Comps;
-		PawnOwner->GetComponents(Comps);
-		if (Comps.Num() > 0) this->BodyComponent = Comps[0];
-		else UE_LOG(LogIKBodyAnimation, Warning, TEXT("Pawn owner has no IKBodyComponent"));
 	}
 
 	else UE_LOG(LogIKBodyAnimation, Warning, TEXT("Unable to get pawn owner!"));
@@ -36,12 +30,25 @@ void UIKCharacterAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 {
 	Super::NativeUpdateAnimation(DeltaSeconds);
 
-	UpdateFootIK(DeltaSeconds); 
-	UpdateMovementValues(DeltaSeconds);
-	UpdateHeadValues();
+	if (!Character || DeltaSeconds == 0.0f)
+	{
+		return;
+	}
+
+	this->BodyComponent = (UIKBodyComponent*)Character->GetComponentByClass(UIKBodyComponent::StaticClass());
+	if (this->BodyComponent != nullptr)
+	{
+		UpdateHandValues();
+		UpdateHeadValues();
+		UpdateMovementValues(DeltaSeconds);
+	}
+	else UE_LOG(LogIKBodyAnimation, Warning, TEXT("Pawn owner has no IKBodyComponent"));
+
+	// Feet IK doesn't need any component references
+	UpdateFootIK();
 }
 
-void UIKCharacterAnimInstance::UpdateFootIK(float DeltaSeconds)
+void UIKCharacterAnimInstance::UpdateFootIK()
 {
 	// Get actor socket locations
 	USkeletalMeshComponent* OwnerComp = GetOwningComponent();
@@ -56,54 +63,98 @@ void UIKCharacterAnimInstance::UpdateFootIK(float DeltaSeconds)
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(Character);
 
+	// Debug Draw
+	const FName TraceTag("FeetTraces");
+	World->DebugDrawTraceTag = TraceTag;
+	Params.TraceTag = TraceTag;
+
 	// Trace both feet and set result in AnimGraph
-	TraceFoot(&LeftFoot, &FootIKValues.LeftFootLocation, 
-		&FootIKValues.LeftFootRotation, &FootIKValues.LeftEffector, World, &Params);
-	TraceFoot(&RightFoot, &FootIKValues.RightFootLocation,
-		&FootIKValues.RightFootRotation, &FootIKValues.RightEffector, World, &Params);
+	TraceFoot(LeftFoot, &FootIKValues.LeftFootLocation, 
+		&FootIKValues.LeftFootRotation, World, &Params);
+	TraceFoot(RightFoot, &FootIKValues.RightFootLocation,
+		&FootIKValues.RightFootRotation, World, &Params);
 }
 
-void UIKCharacterAnimInstance::TraceFoot(FVector* Foot, FVector* ResultLocation, 
-	FRotator* ResultRotation, float* Effector, UWorld* World, FCollisionQueryParams* Params)
+void UIKCharacterAnimInstance::TraceFoot(FVector Foot, FVector* ResultLocation, 
+	FRotator* ResultRotation, UWorld* World, FCollisionQueryParams* Params)
 {
-	// Start location is half player height, End location is current foot location
-	FVector Start = FVector(Foot->X, Foot->Y, Foot->Z + (this->BodyComponent->PlayerHeight / 2));
+	// Establish trace start & end point
+	const float ZRoot = GetOwningComponent()->GetComponentLocation().Z;
+	const FVector Start = FVector(Foot.X, Foot.Y, ZRoot + 60);
+	const FVector End = FVector(Foot.X, Foot.Y, ZRoot);
 
 	// Trace
 	FHitResult HitResult; // Establish Hit Result
-	World->LineTraceSingleByChannel(HitResult, Start, *Foot, ECC_Visibility, Params);
+	World->LineTraceSingleByChannel(HitResult, Start, End, ECC_Visibility, *Params);
 
 	// Check for hit
 	if (HitResult.bBlockingHit)
 	{
-		const FVector ImpactPoint = HitResult.ImpactPoint;
+		const FVector ImpactLocation = HitResult.Location;
 		const FVector ImpactNormal = HitResult.ImpactNormal;
 
-		if (ImpactPoint.Z > Foot->Z)
+		if (ImpactLocation.Z > ZRoot)
 		{
-			// Set new location
-			*ResultLocation = HitResult.ImpactPoint;
-
-			// Set effector
-			*Effector = UKismetMathLibrary::Abs(ResultLocation->Z - Foot->Z);
+			// Create additive vector for Z position
+			ResultLocation->X = UKismetMathLibrary::Abs(ImpactLocation.Z - ZRoot);
 
 			// Calculate and set new rotation
-			(*ResultRotation).Roll = UKismetMathLibrary::Atan2(ImpactNormal.Y, ImpactNormal.Z);
-			(*ResultRotation).Pitch = UKismetMathLibrary::Atan2(ImpactNormal.X, ImpactNormal.Z);
-			(*ResultRotation).Yaw = 0;
+			ResultRotation->Roll = UKismetMathLibrary::Atan2(ImpactNormal.Y, ImpactNormal.Z);
+			ResultRotation->Pitch = UKismetMathLibrary::Atan2(ImpactNormal.X, ImpactNormal.Z);
+			
+			// Return to confirm settings
+			return;
 		}
 
+		// Maintain the settings from the previous tick
+		return;
 	}
+
+	// Set defaults if no trace success
+	ResultLocation->X = 0;
+	ResultRotation->Roll = 0;
+	ResultRotation->Pitch = 0;
+}
+
+void UIKCharacterAnimInstance::UpdateHeadValues()
+{
+	// Simply set head values to match camera at all times.
+	HeadIKValues.HeadRotation = this->BodyComponent->Camera->GetComponentRotation();
+	HeadIKValues.HeadLocation = this->BodyComponent->Camera->GetComponentLocation();
+
+	// Apply the same offset as the component does
+	HeadIKValues.HeadLocation += (UKismetMathLibrary::GetForwardVector(HeadIKValues.HeadRotation) * this->BodyComponent->BodyOffset);
+}
+
+void UIKCharacterAnimInstance::UpdateHandValues()
+{
+	USkeletalMeshComponent* OwnerComp = GetOwningComponent();
+
+	// Get offsets between hand root bone and target socket location
+	const FTransform LeftHandOffset = OwnerComp->GetSocketTransform("hand_lSocket", ERelativeTransformSpace::RTS_ParentBoneSpace);
+	const FTransform RightHandOffset = OwnerComp->GetSocketTransform("hand_rSocket", ERelativeTransformSpace::RTS_ParentBoneSpace);
+
+	// Get controller transform
+	ArmIKValues.LeftTargetTransform = this->BodyComponent->LeftController->GetComponentTransform();
+	ArmIKValues.RightTargetTransform = this->BodyComponent->RightController->GetComponentTransform();
+
+	// Calculate hand bone location/rotation by controler transform and bone offset
+	ArmIKValues.LeftHandLocation = ArmIKValues.LeftTargetTransform.GetLocation()
+		+ (ArmIKValues.LeftTargetTransform.GetRotation().GetForwardVector() * LeftHandOffset.GetLocation().X)
+		+ (ArmIKValues.LeftTargetTransform.GetRotation().GetRightVector() * LeftHandOffset.GetLocation().Y)
+		+ (ArmIKValues.LeftTargetTransform.GetRotation().GetUpVector() * LeftHandOffset.GetLocation().Z);
+
+	ArmIKValues.RightHandLocation = ArmIKValues.RightTargetTransform.GetLocation()
+		+ (ArmIKValues.RightTargetTransform.GetRotation().GetForwardVector() * RightHandOffset.GetLocation().X)
+		+ (ArmIKValues.RightTargetTransform.GetRotation().GetRightVector() * RightHandOffset.GetLocation().Y)
+		+ (ArmIKValues.RightTargetTransform.GetRotation().GetUpVector() * RightHandOffset.GetLocation().Z);
+
+	// Hand Rotations are controller rotations + any offset
+	ArmIKValues.LeftHandRotation = ArmIKValues.LeftTargetTransform.GetRotation().Rotator() + LeftHandOffset.GetRotation().Rotator();
+	ArmIKValues.RightHandRotation = ArmIKValues.RightTargetTransform.GetRotation().Rotator() + LeftHandOffset.GetRotation().Rotator();
 }
 
 void UIKCharacterAnimInstance::UpdateMovementValues(float DeltaSeconds)
 {
 	
-}
-
-void UIKCharacterAnimInstance::UpdateHeadValues()
-{
-	//Simply set head values to match camera at all times.
-	HeadIKValues.HeadRotation = this->BodyComponent->Camera->GetComponentRotation();
-	HeadIKValues.HeadLocation = this->BodyComponent->Camera->GetComponentLocation();
 }

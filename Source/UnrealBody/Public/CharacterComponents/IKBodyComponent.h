@@ -24,24 +24,28 @@ public:
 		USkeletalMeshComponent* Body = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "IKBody")
-		AActor* RightController = nullptr;
+		UPrimitiveComponent* RightController = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "IKBody")
-		AActor* LeftController = nullptr;
+		UPrimitiveComponent* LeftController = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "IKBody")
 		UCameraComponent* Camera = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "IKBody")
-		float MovementThreshold = 15.0f 
+		float MovementThreshold = 60.0f 
 		UMETA(Tooltip = "Amount of units a player's head has to move to consider it a step instead of head movement.");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "IKBody")
-		float RotationThreshold = 15.0f 
+		float RotationThreshold = 25.0f 
 		UMETA(Tooltip = "Amount of degrees player's head has to turn to consider it more than just head movement.");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "IKBody")
 		float PlayerHeight = 180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "IKBody")
+		float BodyOffset = -20.0f
+		UMETA(Tooltip = "Units to move the body from the camera looking direction to avoid clipping.");
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "IKBody")
 		float BodyRotationOffset = -90.0f 

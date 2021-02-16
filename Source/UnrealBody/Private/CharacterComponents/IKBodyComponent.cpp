@@ -24,7 +24,7 @@ void UIKBodyComponent::BeginPlay()
 
 		// Set body at camera position + offsets
 		this->BodyTargetLocation = Camera->GetComponentLocation()
-			+ (UKismetMathLibrary::GetForwardVector(Camera->GetComponentRotation()) * -20); // 20 units back from cam to avoid clipping
+			+ (UKismetMathLibrary::GetForwardVector(Camera->GetComponentRotation()) * BodyOffset); // 20 units back from cam to avoid clipping
 		this->BodyTargetLocation.Z -= this->PlayerHeight;
 		this->Body->SetWorldLocation(this->BodyTargetLocation);
 
@@ -61,8 +61,8 @@ void UIKBodyComponent::TickBodyMovement(float DeltaTime)
 
 	// Calculate the XY distance moved
 	float DistanceMoved = FVector::Distance(
-		FVector(CameraCurrentPosition.GetLocation().X, CameraCurrentPosition.GetLocation().X, 0),
-		FVector(LastCameraPosition.GetLocation().X, LastCameraPosition.GetLocation().X, 0)
+		FVector(CameraCurrentPosition.GetLocation().X, CameraCurrentPosition.GetLocation().Y, 0),
+		FVector(LastCameraPosition.GetLocation().X, LastCameraPosition.GetLocation().Y, 0)
 	);
 
 	// Calculate Yaw difference
@@ -75,7 +75,7 @@ void UIKBodyComponent::TickBodyMovement(float DeltaTime)
 	{
 		// Set new body target location
 		this->BodyTargetLocation = CameraCurrentPosition.GetLocation() 
-			+ (UKismetMathLibrary::GetForwardVector(CameraCurrentPosition.GetRotation().Rotator()) * -20); // 20 units back from cam to avoid clipping
+			+ (UKismetMathLibrary::GetForwardVector(CameraCurrentPosition.GetRotation().Rotator()) * BodyOffset); // 20 units back from cam to avoid clipping
 
 		// Update movement speed and direction
 		this->MovementDirection = GetMovementDirection(&LastCameraPosition, &CameraCurrentPosition);
