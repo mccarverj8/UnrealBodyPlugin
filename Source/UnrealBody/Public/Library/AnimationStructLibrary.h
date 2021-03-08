@@ -1,8 +1,39 @@
+/*
+*   This file is part of the Unreal Body Plugin by Kaz Voeten.
+*   Copyright (C) 2021 Kaz Voeten
+*
+*   This program is free software: you can redistribute it and/or modify
+*   it under the terms of the GNU General Public License as published by
+*   the Free Software Foundation, either version 3 of the License, or
+*   (at your option) any later version.
+*
+*   This program is distributed in the hope that it will be useful,
+*   but WITHOUT ANY WARRANTY; without even the implied warranty of
+*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*   GNU General Public License for more details.
+*
+*   You should have received a copy of the GNU General Public License
+*   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
+
 #pragma once
 
 #include "CoreMinimal.h"
 
 #include "AnimationStructLibrary.generated.h"
+
+/** Anim Graph - Movement */
+USTRUCT(BlueprintType)
+struct FAnimGraphMovement
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
+		float Speed = 0.0f;
+
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
+		float Direction = 0.0f;
+};
 
 /** Anim Graph - Head IK */
 USTRUCT(BlueprintType)
@@ -41,18 +72,6 @@ USTRUCT(BlueprintType)
 struct FAnimGraphArmIK
 {
 	GENERATED_BODY()
-
-	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
-		FVector LeftHandLocation = FVector();
-
-	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
-		FRotator LeftHandRotation = FRotator();
-
-	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
-		FVector RightHandLocation = FVector();
-
-	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
-		FRotator RightHandRotation = FRotator();
 
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
 		FTransform LeftTargetTransform = FTransform();
@@ -138,5 +157,50 @@ struct FAnimGraphFingerIK
 		BlendMap.Add(EFingerBone::thumb_01_r, 0.0f);
 		BlendMap.Add(EFingerBone::thumb_02_r, 0.0f);
 		BlendMap.Add(EFingerBone::thumb_03_r, 0.0f);
+	}
+};
+
+/** Anim Graph - Finger IK */
+USTRUCT(BlueprintType)
+struct FFingerStateMap
+{
+	GENERATED_BODY()
+
+		UPROPERTY(VisibleDefaultsOnly, BlueprintReadWrite)
+		TMap<EFingerBone, bool> StateMap;
+
+	FFingerStateMap()
+	{
+		// Populate the MAP on construction
+		StateMap.Add(EFingerBone::index_01_l, false);
+		StateMap.Add(EFingerBone::index_02_l, false);
+		StateMap.Add(EFingerBone::index_03_l, false);
+		StateMap.Add(EFingerBone::middle_01_l, false);
+		StateMap.Add(EFingerBone::middle_02_l, false);
+		StateMap.Add(EFingerBone::middle_03_l, false);
+		StateMap.Add(EFingerBone::ring_01_l, false);
+		StateMap.Add(EFingerBone::ring_02_l, false);
+		StateMap.Add(EFingerBone::ring_03_l, false);
+		StateMap.Add(EFingerBone::pinky_01_l, false);
+		StateMap.Add(EFingerBone::pinky_02_l, false);
+		StateMap.Add(EFingerBone::pinky_03_l, false);
+		StateMap.Add(EFingerBone::thumb_01_l, false);
+		StateMap.Add(EFingerBone::thumb_02_l, false);
+		StateMap.Add(EFingerBone::thumb_03_l, false);
+		StateMap.Add(EFingerBone::index_01_r, false);
+		StateMap.Add(EFingerBone::index_02_r, false);
+		StateMap.Add(EFingerBone::index_03_r, false);
+		StateMap.Add(EFingerBone::middle_01_r, false);
+		StateMap.Add(EFingerBone::middle_02_r, false);
+		StateMap.Add(EFingerBone::middle_03_r, false);
+		StateMap.Add(EFingerBone::ring_01_r, false);
+		StateMap.Add(EFingerBone::ring_02_r, false);
+		StateMap.Add(EFingerBone::ring_03_r, false);
+		StateMap.Add(EFingerBone::pinky_01_r, false);
+		StateMap.Add(EFingerBone::pinky_02_r, false);
+		StateMap.Add(EFingerBone::pinky_03_r, false);
+		StateMap.Add(EFingerBone::thumb_01_r, false);
+		StateMap.Add(EFingerBone::thumb_02_r, false);
+		StateMap.Add(EFingerBone::thumb_03_r, false);
 	}
 };

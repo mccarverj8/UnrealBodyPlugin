@@ -1,10 +1,20 @@
-﻿// Project:         Advanced Locomotion System V4 on C++
-// Copyright:       Copyright (C) 2020 Doğa Can Yanıkoğlu
-// License:         MIT License (http://www.opensource.org/licenses/mit-license.php)
-// Source Code:     https://github.com/dyanikoglu/ALSV4_CPP
-// Original Author: Doğa Can Yanıkoğlu
-// Contributors:    Haziq Fadhil, Jens Bjarne Myhre
-
+﻿/*
+*   This file is part of the Unreal Body Plugin by Kaz Voeten.
+*   Copyright (C) 2021 Kaz Voeten
+*
+*   This program is free software: you can redistribute it and/or modify
+*   it under the terms of the GNU General Public License as published by
+*   the Free Software Foundation, either version 3 of the License, or
+*   (at your option) any later version.
+*
+*   This program is distributed in the hope that it will be useful,
+*   but WITHOUT ANY WARRANTY; without even the implied warranty of
+*   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+*   GNU General Public License for more details.
+*
+*   You should have received a copy of the GNU General Public License
+*   along with this program.  If not, see <http://www.gnu.org/licenses/>.
+*/
 
 #include "Animation/IKCharacterAnimInstance.h"
 #include "Library/AnimationStructLibrary.h"
@@ -40,7 +50,8 @@ void UIKCharacterAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	{
 		UpdateHandValues();
 		UpdateHeadValues();
-		UpdateMovementValues(DeltaSeconds);
+		UpdateMovementValues();
+		UpdateFingerIKValues();
 	}
 	else UE_LOG(LogIKBodyAnimation, Warning, TEXT("Pawn owner has no IKBodyComponent"));
 
@@ -62,11 +73,6 @@ void UIKCharacterAnimInstance::UpdateFootIK()
 	// Filter out player from hits
 	FCollisionQueryParams Params;
 	Params.AddIgnoredActor(Character);
-
-	// Debug Draw
-	const FName TraceTag("FeetTraces");
-	World->DebugDrawTraceTag = TraceTag;
-	Params.TraceTag = TraceTag;
 
 	// Trace both feet and set result in AnimGraph
 	TraceFoot(LeftFoot, &FootIKValues.LeftFootLocation, 
@@ -130,31 +136,32 @@ void UIKCharacterAnimInstance::UpdateHandValues()
 {
 	USkeletalMeshComponent* OwnerComp = GetOwningComponent();
 
-	// Get offsets between hand root bone and target socket location
-	const FTransform LeftHandOffset = OwnerComp->GetSocketTransform("hand_lSocket", ERelativeTransformSpace::RTS_ParentBoneSpace);
-	const FTransform RightHandOffset = OwnerComp->GetSocketTransform("hand_rSocket", ERelativeTransformSpace::RTS_ParentBoneSpace);
+	// Get offsets
+	FTransform LeftOffset = OwnerComp->GetSocketTransform("hand_lSocket", ERelativeTransformSpace::RTS_ParentBoneSpace);
+	FTransform RightOffset = OwnerComp->GetSocketTransform("hand_rSocket", ERelativeTransformSpace::RTS_ParentBoneSpace);
 
-	// Get controller transform
-	ArmIKValues.LeftTargetTransform = this->BodyComponent->LeftController->GetComponentTransform();
-	ArmIKValues.RightTargetTransform = this->BodyComponent->RightController->GetComponentTransform();
+	// Fix left offset
+	LeftOffset.ScaleTranslation(-1);
 
-	// Calculate hand bone location/rotation by controler transform and bone offset
-	ArmIKValues.LeftHandLocation = ArmIKValues.LeftTargetTransform.GetLocation()
-		+ (ArmIKValues.LeftTargetTransform.GetRotation().GetForwardVector() * LeftHandOffset.GetLocation().X)
-		+ (ArmIKValues.LeftTargetTransform.GetRotation().GetRightVector() * LeftHandOffset.GetLocation().Y)
-		+ (ArmIKValues.LeftTargetTransform.GetRotation().GetUpVector() * LeftHandOffset.GetLocation().Z);
-
-	ArmIKValues.RightHandLocation = ArmIKValues.RightTargetTransform.GetLocation()
-		+ (ArmIKValues.RightTargetTransform.GetRotation().GetForwardVector() * RightHandOffset.GetLocation().X)
-		+ (ArmIKValues.RightTargetTransform.GetRotation().GetRightVector() * RightHandOffset.GetLocation().Y)
-		+ (ArmIKValues.RightTargetTransform.GetRotation().GetUpVector() * RightHandOffset.GetLocation().Z);
-
-	// Hand Rotations are controller rotations + any offset
-	ArmIKValues.LeftHandRotation = ArmIKValues.LeftTargetTransform.GetRotation().Rotator() + LeftHandOffset.GetRotation().Rotator();
-	ArmIKValues.RightHandRotation = ArmIKValues.RightTargetTransform.GetRotation().Rotator() + LeftHandOffset.GetRotation().Rotator();
+	// Get controller transform * offset
+	ArmIKValues.LeftTargetTransform = this->BodyComponent->LeftController->GetComponentTransform() * LeftOffset;
+	ArmIKValues.RightTargetTransform = this->BodyComponent->RightController->GetComponentTransform() * RightOffset;
 }
 
-void UIKCharacterAnimInstance::UpdateMovementValues(float DeltaSeconds)
+void UIKCharacterAnimInstance::UpdateMovementValues()
 {
-	
+	MovementValues.Speed = this->BodyComponent->MovementSpeed;
+	MovementValues.Direction = this->BodyComponent->MovementDirection;
+}
+
+void UIKCharacterAnimInstance::UpdateFingerIKValues()
+{
+	// This is probably kinda inefficient, gotta find a way to directly access the FingerIKBlendmap with a pointer to replace it's value. 
+	// Direct ref to anim? (cross dep tho)
+	for (const TPair<EFingerBone, float>& pair : this->BodyComponent->FingerIKValues.BlendMap)
+	{
+		const EFingerBone Bone = pair.Key;
+		const float Alpha = pair.Value;
+		*this->FingerIKValues.BlendMap.Find(Bone) = Alpha;
+	}
 }
